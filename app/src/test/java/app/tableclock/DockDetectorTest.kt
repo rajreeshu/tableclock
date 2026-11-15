@@ -157,6 +157,15 @@ class DockDetectorTest {
     }
 
     @Test
+    fun phoneMarkFollowsTheModel() {
+        assertEquals("Galaxy S24 Ultra", phoneLabel("Galaxy S24 Ultra", "SM-S928B"))
+        assertEquals("Galaxy S24 Ultra", phoneLabel("", "SM-S928B"))
+        assertEquals("Pixel 9", phoneLabel("", "Pixel 9"))
+        assertEquals(PhoneKind.Ultra, phoneKind("Galaxy S24 Ultra", "SM-S928B"))
+        assertEquals(PhoneKind.Other, phoneKind("Pixel 9", "Pixel 9"))
+    }
+
+    @Test
     fun gravityTellsSideFromUprightAndFlat() {
         assertEquals(true, PoseMath.fromGravity(floatArrayOf(9.2f, 0.8f, 2f)))
         assertEquals(false, PoseMath.fromGravity(floatArrayOf(0.6f, 9.1f, 1.2f)))

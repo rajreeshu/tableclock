@@ -5,6 +5,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.media.AudioAttributes
+import android.media.AudioManager
+import android.media.Ringtone
+import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -16,18 +20,23 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,13 +45,19 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -56,6 +71,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
+import kotlin.math.roundToInt
 
 class ClockActivity : ComponentActivity() {
     private val prefs by lazy { Prefs(this) }
@@ -131,11 +147,54 @@ private fun ClockScreen(
     val is24 = remember { DateFormat.is24HourFormat(context) }
 
     var now by remember { mutableStateOf(LocalDateTime.now()) }
+    var tick by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
         while (true) {
             now = LocalDateTime.now()
-            delay(1000L - (System.currentTimeMillis() % 1000L))
+            tick++
+            delay(250L)
         }
+    }
+    val phoneName = remember { thisPhoneLabel() }
+    val phoneKind = remember(phoneName) { thisPhoneKind(phoneName) }
+    var draftMinutes by remember { mutableFloatStateOf(0f) }
+    var timerEndsAt by remember { mutableLongStateOf(0L) }
+    var timerSpan by remember { mutableLongStateOf(0L) }
+    var timerDone by remember { mutableStateOf(false) }
+    val timerLeft = remember(tick, timerEndsAt) {
+        val leftMs = timerEndsAt - System.currentTimeMillis()
+        if (timerEndsAt == 0L || leftMs <= 0L) 0 else (leftMs / 1000L).toInt()
+    }
+    val timerRunning = timerLeft > 0
+    val timerFraction = if (timerRunning && timerSpan > 0L) {
+        (timerLeft * 1000f / timerSpan.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    val alarm = remember { timerRingtone(context) }
+    DisposableEffect(alarm) {
+        onDispose { alarm?.stop() }
+    }
+    LaunchedEffect(timerDone) {
+        if (!timerDone) {
+            alarm?.stop()
+            return@LaunchedEffect
+        }
+        val audio = context.getSystemService(AudioManager::class.java)
+        val max = audio.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+        if (audio.getStreamVolume(AudioManager.STREAM_ALARM) < max / 3) {
+            audio.setStreamVolume(AudioManager.STREAM_ALARM, max / 2, 0)
+        }
+        alarm?.play()
+    }
+    LaunchedEffect(timerEndsAt) {
+        val ends = timerEndsAt
+        if (ends == 0L) return@LaunchedEffect
+        val wait = ends - System.currentTimeMillis()
+        if (wait > 0) delay(wait)
+        if (timerEndsAt != ends) return@LaunchedEffect
+        timerEndsAt = 0L
+        timerDone = true
     }
 
     val prefs = remember { Prefs(context) }
@@ -198,13 +257,11 @@ private fun ClockScreen(
         }
     }
 
+    val showRail = controls || timerRunning || timerDone
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
-            .pointerInput(Unit) {
-                detectTapGestures { controls = !controls }
-            },
+            .background(Color.Black),
         contentAlignment = Alignment.Center,
     ) {
         val scene = sceneNow(weather?.code, now.hour)
@@ -215,6 +272,23 @@ private fun ClockScreen(
         }
         val alarmAt = rememberNextAlarmMillis()
         val phone = rememberPhoneStatus()
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(end = 72.dp)
+                .pointerInput(Unit) {
+                    detectTapGestures {
+                        if (timerDone) {
+                            timerDone = false
+                            alarm?.stop()
+                        }
+                        controls = !controls
+                        if (controls && timerRunning) {
+                            draftMinutes = timerLeft / 60f
+                        }
+                    }
+                },
+        ) {
         ClockBoard(
             now = now,
             face = face,
@@ -231,7 +305,11 @@ private fun ClockScreen(
             marginFit = sideFit,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 28.dp),
+                .padding(horizontal = 28.dp)
+                .padding(
+                    bottom = if (controls) 96.dp else 20.dp,
+                    end = if (showRail) 56.dp else 0.dp,
+                ),
             leading = {
                 if (showAlarm) {
                     MarginNote(
@@ -278,13 +356,66 @@ private fun ClockScreen(
                 }
             },
         )
+        }
+
+        if (!controls && !timerRunning && !timerDone) {
+            PhoneSignature(
+                label = phoneName,
+                kind = phoneKind,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 22.dp, bottom = 16.dp),
+            )
+        }
+        if (!controls && (timerRunning || timerDone)) {
+            Text(
+                text = if (timerDone) "Time's up" else formatTimer(timerLeft),
+                color = if (timerDone) Amber else Cream,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Light,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 16.dp),
+            )
+        }
+
+        if (showRail) {
+            TimerRail(
+                fraction = timerFraction,
+                label = when {
+                    timerDone -> "Done"
+                    timerRunning -> formatTimer(timerLeft)
+                    draftMinutes.roundToInt() <= 0 -> "Timer"
+                    else -> "${draftMinutes.roundToInt()} min"
+                },
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 10.dp, bottom = if (controls) 108.dp else 36.dp),
+                onDrag = { next ->
+                    draftMinutes = next * TIMER_MAX
+                },
+                onCommit = {
+                    val minutes = draftMinutes.roundToInt()
+                    timerDone = false
+                    alarm?.stop()
+                    if (minutes <= 0) {
+                        timerEndsAt = 0L
+                        timerSpan = 0L
+                    } else {
+                        val span = minutes * 60_000L
+                        timerSpan = span
+                        timerEndsAt = System.currentTimeMillis() + span
+                    }
+                },
+            )
+        }
 
         AnimatedVisibility(
             visible = controls,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(horizontal = 28.dp, vertical = 12.dp),
+                .padding(start = 28.dp, end = 78.dp, bottom = 8.dp),
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -351,3 +482,112 @@ private fun WeatherLine(
         }
     }
 }
+
+@Composable
+private fun TimerRail(
+    fraction: Float,
+    label: String,
+    modifier: Modifier = Modifier,
+    onDrag: (Float) -> Unit,
+    onCommit: () -> Unit,
+) {
+    val dragNow = rememberUpdatedState(onDrag)
+    val commitNow = rememberUpdatedState(onCommit)
+    var dragging by remember { mutableStateOf(false) }
+    var dragged by remember { mutableFloatStateOf(fraction) }
+    val level = (if (dragging) dragged else fraction).coerceIn(0f, 1f)
+    Column(
+        modifier.zIndex(2f),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = label,
+            color = Cream.copy(alpha = 0.86f),
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.width(64.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+        Box(
+            modifier = Modifier
+                .width(44.dp)
+                .height(230.dp)
+                .pointerInput(Unit) {
+                    detectDragGestures(
+                        onDragStart = { offset ->
+                            dragging = true
+                            val next = (1f - offset.y / size.height).coerceIn(0f, 1f)
+                            dragged = next
+                            dragNow.value(next)
+                        },
+                        onDragEnd = {
+                            dragging = false
+                            commitNow.value()
+                        },
+                        onDragCancel = {
+                            dragging = false
+                            commitNow.value()
+                        },
+                        onDrag = { change, _ ->
+                            change.consume()
+                            val next = (1f - change.position.y / size.height).coerceIn(0f, 1f)
+                            dragged = next
+                            dragNow.value(next)
+                        },
+                    )
+                },
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .width(3.dp)
+                    .fillMaxHeight()
+                    .clip(CircleShape)
+                    .background(Cream.copy(alpha = 0.2f)),
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .width(3.dp)
+                    .fillMaxHeight(level.coerceAtLeast(0.02f))
+                    .clip(CircleShape)
+                    .background(Cream.copy(alpha = 0.9f)),
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxHeight(level.coerceIn(0.04f, 1f)),
+                contentAlignment = Alignment.TopCenter,
+            ) {
+                Box(
+                    Modifier
+                        .size(14.dp)
+                        .clip(CircleShape)
+                        .background(Cream),
+                )
+            }
+        }
+    }
+}
+
+private fun formatTimer(totalSeconds: Int): String {
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return "%d:%02d".format(minutes, seconds)
+}
+
+private fun timerRingtone(context: Context): Ringtone? {
+    val uri = RingtoneManager.getActualDefaultRingtoneUri(context, RingtoneManager.TYPE_ALARM)
+        ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+        ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        ?: return null
+    return RingtoneManager.getRingtone(context, uri)?.apply {
+        audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ALARM)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+        isLooping = true
+    }
+}
+
+private const val TIMER_MAX = 90f
