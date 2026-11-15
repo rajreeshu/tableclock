@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -55,6 +58,7 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.delay
+import java.time.LocalDateTime
 import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
@@ -72,13 +76,14 @@ class MainActivity : ComponentActivity() {
 
 private enum class Page { Home, Calibrate }
 
-private enum class Grant { Notifications, Overlay, FullScreen, Battery }
+private enum class Grant { Notifications, Overlay, FullScreen, Battery, Location }
 
 private data class Grants(
     val notifications: Boolean,
     val overlay: Boolean,
     val fullScreen: Boolean,
     val battery: Boolean,
+    val location: Boolean,
 )
 
 @Composable
@@ -91,6 +96,13 @@ private fun AppRoot(prefs: Prefs) {
     var enabled by remember { mutableStateOf(prefs.enabled) }
     var calibration by remember { mutableStateOf(prefs.calibration) }
     var brightness by remember { mutableFloatStateOf(prefs.brightness) }
+    var face by remember { mutableStateOf(prefs.face) }
+    var classic by remember { mutableStateOf(prefs.classic) }
+    var digitalStyle by remember { mutableStateOf(prefs.digitalStyle) }
+    var showSeconds by remember { mutableStateOf(prefs.showSeconds) }
+    var showDate by remember { mutableStateOf(prefs.showDate) }
+    var showWeather by remember { mutableStateOf(prefs.showWeather) }
+    var hourMode by remember { mutableStateOf(prefs.hourMode) }
     var notice by remember { mutableStateOf<String?>(null) }
     var resumeTick by remember { mutableIntStateOf(0) }
     var armWhenAllowed by remember { mutableStateOf(false) }
@@ -104,7 +116,16 @@ private fun AppRoot(prefs: Prefs) {
                     activity.runOnUiThread { readingState.value = reading }
                 }
                 Lifecycle.Event.ON_STOP -> signals.stop()
-                Lifecycle.Event.ON_RESUME -> resumeTick++
+                Lifecycle.Event.ON_RESUME -> {
+                    face = prefs.face
+                    classic = prefs.classic
+                    digitalStyle = prefs.digitalStyle
+                    showSeconds = prefs.showSeconds
+                    showDate = prefs.showDate
+                    showWeather = prefs.showWeather
+                    hourMode = prefs.hourMode
+                    resumeTick++
+                }
                 else -> Unit
             }
         }
@@ -143,6 +164,10 @@ private fun AppRoot(prefs: Prefs) {
         resumeTick++
     }
 
+    val locationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { resumeTick++ }
+
     val grants = remember(resumeTick) { readGrants(context) }
 
     when (page) {
@@ -152,6 +177,14 @@ private fun AppRoot(prefs: Prefs) {
             enabled = enabled,
             calibration = calibration,
             brightness = brightness,
+            face = face,
+            classic = classic,
+            digitalStyle = digitalStyle,
+            showSeconds = showSeconds,
+            showDate = showDate,
+            showWeather = showWeather,
+            hourMode = hourMode,
+            previewWeather = prefs.weather,
             grants = grants,
             notice = notice,
             onEnabled = { on ->
@@ -174,6 +207,34 @@ private fun AppRoot(prefs: Prefs) {
             onBrightness = {
                 brightness = it
                 prefs.brightness = it
+            },
+            onFace = {
+                face = it
+                prefs.face = it
+            },
+            onClassic = {
+                classic = it
+                prefs.classic = it
+            },
+            onDigitalStyle = {
+                digitalStyle = it
+                prefs.digitalStyle = it
+            },
+            onShowSeconds = {
+                showSeconds = it
+                prefs.showSeconds = it
+            },
+            onShowDate = {
+                showDate = it
+                prefs.showDate = it
+            },
+            onShowWeather = {
+                showWeather = it
+                prefs.showWeather = it
+            },
+            onHourMode = {
+                hourMode = it
+                prefs.hourMode = it
             },
             onCalibrate = { page = Page.Calibrate },
             onPreview = {
@@ -206,6 +267,7 @@ private fun AppRoot(prefs: Prefs) {
                             Uri.parse("package:${context.packageName}"),
                         ),
                     )
+                    Grant.Location -> locationPermission.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
                 }
             },
         )
@@ -251,7 +313,11 @@ private fun readGrants(context: Context): Grants {
     val fullScreen = context.getSystemService(NotificationManager::class.java).canUseFullScreenIntent()
     val battery = context.getSystemService(PowerManager::class.java)
         .isIgnoringBatteryOptimizations(context.packageName)
-    return Grants(notifications, overlay, fullScreen, battery)
+    val location = ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.ACCESS_COARSE_LOCATION,
+    ) == PackageManager.PERMISSION_GRANTED
+    return Grants(notifications, overlay, fullScreen, battery, location)
 }
 
 @Composable
@@ -261,10 +327,25 @@ private fun HomeScreen(
     enabled: Boolean,
     calibration: Calibration,
     brightness: Float,
+    face: ClockFace,
+    classic: ClassicStyle,
+    digitalStyle: DigitalStyle,
+    showSeconds: Boolean,
+    showDate: Boolean,
+    showWeather: Boolean,
+    hourMode: HourMode,
+    previewWeather: WeatherReport?,
     grants: Grants,
     notice: String?,
     onEnabled: (Boolean) -> Unit,
     onBrightness: (Float) -> Unit,
+    onFace: (ClockFace) -> Unit,
+    onClassic: (ClassicStyle) -> Unit,
+    onDigitalStyle: (DigitalStyle) -> Unit,
+    onShowSeconds: (Boolean) -> Unit,
+    onShowDate: (Boolean) -> Unit,
+    onShowWeather: (Boolean) -> Unit,
+    onHourMode: (HourMode) -> Unit,
     onCalibrate: () -> Unit,
     onPreview: () -> Unit,
     onGrant: (Grant) -> Unit,
@@ -325,6 +406,63 @@ private fun HomeScreen(
             Text(if (calibration.usable) "Calibrate again" else "Calibrate", color = Amber)
         }
         Spacer(Modifier.height(8.dp))
+        ClockDemo(
+            face = face,
+            classic = classic,
+            digitalStyle = digitalStyle,
+            showSeconds = showSeconds,
+            showDate = showDate,
+            showWeather = showWeather,
+            hourMode = hourMode,
+            weather = previewWeather,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "The preview uses the same clock as the dock. Weather still comes from the forecast.",
+            color = Mute,
+            fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(16.dp))
+        Text("Show", color = Cream, fontSize = 16.sp)
+        Spacer(Modifier.height(8.dp))
+        ChoiceChips(
+            options = ClockFace.entries,
+            selected = face,
+            label = { it.label },
+            onSelect = onFace,
+        )
+        Spacer(Modifier.height(16.dp))
+        Text("Classic", color = Cream, fontSize = 16.sp)
+        Spacer(Modifier.height(8.dp))
+        ChoiceChips(
+            options = ClassicStyle.entries,
+            selected = classic,
+            label = { it.label },
+            onSelect = onClassic,
+        )
+        Spacer(Modifier.height(16.dp))
+        Text("Digital", color = Cream, fontSize = 16.sp)
+        Spacer(Modifier.height(8.dp))
+        ChoiceChips(
+            options = DigitalStyle.entries,
+            selected = digitalStyle,
+            label = { it.label },
+            onSelect = onDigitalStyle,
+        )
+        Spacer(Modifier.height(16.dp))
+        Text("Hours", color = Cream, fontSize = 16.sp)
+        Spacer(Modifier.height(8.dp))
+        ChoiceChips(
+            options = HourMode.entries,
+            selected = hourMode,
+            label = { it.label },
+            onSelect = onHourMode,
+        )
+        Spacer(Modifier.height(8.dp))
+        OptionSwitch("Seconds", showSeconds, onShowSeconds)
+        OptionSwitch("Date", showDate, onShowDate)
+        OptionSwitch("Weather", showWeather, onShowWeather)
+        Spacer(Modifier.height(8.dp))
         Text("Clock brightness", color = Cream, fontSize = 16.sp)
         Slider(
             value = brightness,
@@ -374,6 +512,13 @@ private fun HomeScreen(
             detail = "Stops Samsung from pausing the listener overnight",
             granted = grants.battery,
             onAllow = { onGrant(Grant.Battery) },
+        )
+        Hairline()
+        GrantRow(
+            title = "Location",
+            detail = "Approximate location, so the clock can show the weather",
+            granted = grants.location,
+            onAllow = { onGrant(Grant.Location) },
         )
         if (reading?.wirelessPower == true) {
             Spacer(Modifier.height(18.dp))
@@ -618,6 +763,88 @@ private fun CalibrateScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ClockDemo(
+    face: ClockFace,
+    classic: ClassicStyle,
+    digitalStyle: DigitalStyle,
+    showSeconds: Boolean,
+    showDate: Boolean,
+    showWeather: Boolean,
+    hourMode: HourMode,
+    weather: WeatherReport?,
+) {
+    val context = LocalContext.current
+    var now by remember { mutableStateOf(LocalDateTime.now()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = LocalDateTime.now()
+            delay(1000L - (System.currentTimeMillis() % 1000L))
+        }
+    }
+    val use24 = when (hourMode) {
+        HourMode.System -> android.text.format.DateFormat.is24HourFormat(context)
+        HourMode.Twelve -> false
+        HourMode.TwentyFour -> true
+    }
+    val scene = sceneNow(weather?.code, now.hour)
+    val fahrenheit = prefersFahrenheit(java.util.Locale.getDefault().country)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(250.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.Black),
+    ) {
+        ClockBoard(
+            now = now,
+            face = face,
+            classic = classic,
+            digitalStyle = digitalStyle,
+            showSeconds = showSeconds,
+            showDate = showDate,
+            use24 = use24,
+            scene = scene,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            weather = {
+                if (showWeather && weather != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        WeatherMark(scene, Modifier.size(28.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = "${formatTemperature(weather.tempC, fahrenheit)}  ${weatherLabel(weather.code)}",
+                                color = Cream,
+                                fontSize = 14.sp,
+                            )
+                            Text(
+                                text = "${formatTemperature(weather.highC, fahrenheit)}  /  ${formatTemperature(weather.lowC, fahrenheit)}",
+                                color = Mute,
+                                fontSize = 11.sp,
+                            )
+                        }
+                    }
+                } else if (showWeather) {
+                    Text("Weather shows here", color = Mute, fontSize = 12.sp)
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun OptionSwitch(title: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, color = Cream, fontSize = 16.sp, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onChecked)
     }
 }
 

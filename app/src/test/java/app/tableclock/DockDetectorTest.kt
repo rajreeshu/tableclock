@@ -99,6 +99,27 @@ class DockDetectorTest {
     }
 
     @Test
+    fun scenesFollowTheSkyOrAChosenLook() {
+        assertEquals(Scene.Sunny, sceneForCode(0))
+        assertEquals(Scene.Rain, sceneForCode(63))
+        assertEquals(Scene.Snow, sceneForCode(73))
+        assertEquals(Scene.Storm, sceneForCode(95))
+        assertEquals(Scene.Sunny, sceneNow(code = 0, hour = 21))
+        assertEquals(Scene.Night, sceneNow(code = null, hour = 22))
+        assertEquals(Scene.Rain, sceneNow(code = 63, hour = 8))
+    }
+
+    @Test
+    fun weatherLabelsAndTemperature() {
+        assertEquals("Clear", weatherLabel(0))
+        assertEquals("Rain", weatherLabel(63))
+        assertEquals("27°", formatTemperature(26.6f, fahrenheit = false))
+        assertEquals("80°", formatTemperature(26.6f, fahrenheit = true))
+        assertTrue(prefersFahrenheit("US"))
+        assertFalse(prefersFahrenheit("IN"))
+    }
+
+    @Test
     fun gravityTellsSideFromUprightAndFlat() {
         assertEquals(true, PoseMath.fromGravity(floatArrayOf(9.2f, 0.8f, 2f)))
         assertEquals(false, PoseMath.fromGravity(floatArrayOf(0.6f, 9.1f, 1.2f)))

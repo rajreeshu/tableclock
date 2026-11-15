@@ -12,14 +12,15 @@ If the pad is powered, wireless charging opens the clock as well.
 - A phone with a magnetometer. A Galaxy S24 Ultra is one.
 - A magnetic charger or a magnetic stand
 
-The app does not need a network connection. It has no `INTERNET` permission.
+The app screen shows a live preview. Choose Classic, Digital, or both, then a style for each, plus seconds, date, weather, and 12- or 24-hour time. The weather icon follows the forecast.
 
 ## Use it
 
 1. Install the app and open it.
 2. Turn on **Listen for the charger**.
 3. Allow the four requests: notifications, show over other apps, full-screen alerts, and unrestricted battery. The first three let the clock appear over the lock screen. The last one stops the phone from pausing the listener overnight.
-4. Set the phone on the charger, flat or landscape.
+4. Allow location if you want the weather. It uses an approximate position and [Open-Meteo](https://open-meteo.com/), with no account. The forecast is cached for half an hour.
+5. Set the phone on the charger, flat or landscape.
 
 Brightness starts low, so the screen is not another source of heat. Tap the clock to change it, or to close it. Closing it while the phone is still docked keeps the clock closed until you pick the phone up.
 
@@ -34,7 +35,7 @@ Either signal is enough, as long as the phone is flat or on its side and not mov
 | Magnet | The field is about 75 µT or stronger. Earth's field is lower than that, so a charger magnet stands out. |
 | Wireless power | The pad is charging the phone. |
 
-A foreground service reads the magnetometer, gravity, and gyroscope. Readings stay on the phone.
+A foreground service reads the magnetometer, gravity, and gyroscope. Those readings stay on the phone. Weather sends an approximate latitude and longitude to Open-Meteo and nothing else.
 
 ## Build
 

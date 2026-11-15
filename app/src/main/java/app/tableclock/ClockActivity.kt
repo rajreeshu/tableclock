@@ -1,15 +1,20 @@
 package app.tableclock
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.Uri
 import android.os.BatteryManager
 import android.os.Bundle
+import android.provider.Settings
 import android.text.format.DateFormat
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -24,6 +29,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -43,9 +49,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -53,10 +57,10 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-import kotlin.math.min
 
 class ClockActivity : ComponentActivity() {
     private val prefs by lazy { Prefs(this) }
@@ -130,13 +134,6 @@ private fun ClockScreen(
 
     val context = LocalContext.current
     val is24 = remember { DateFormat.is24HourFormat(context) }
-    val locale = remember { java.util.Locale.getDefault() }
-    val timeFormat = remember(is24) {
-        DateTimeFormatter.ofPattern(if (is24) "HH:mm" else "h:mm", locale)
-    }
-    val secondFormat = remember { DateTimeFormatter.ofPattern("ss", locale) }
-    val dateFormat = remember { DateTimeFormatter.ofPattern("EEEE, d MMMM", locale) }
-    val periodFormat = remember { DateTimeFormatter.ofPattern("a", locale) }
 
     var now by remember { mutableStateOf(LocalDateTime.now()) }
     LaunchedEffect(Unit) {
@@ -167,8 +164,51 @@ private fun ClockScreen(
         onDispose { context.unregisterReceiver(receiver) }
     }
 
+    val prefs = remember { Prefs(context) }
     var controls by remember { mutableStateOf(false) }
     var level by remember { mutableFloatStateOf(brightness) }
+    var face by remember { mutableStateOf(prefs.face) }
+    var classic by remember { mutableStateOf(prefs.classic) }
+    var digitalStyle by remember { mutableStateOf(prefs.digitalStyle) }
+    var showSeconds by remember { mutableStateOf(prefs.showSeconds) }
+    var showDate by remember { mutableStateOf(prefs.showDate) }
+    var showWeather by remember { mutableStateOf(prefs.showWeather) }
+    var hourMode by remember { mutableStateOf(prefs.hourMode) }
+    DisposableEffect(context) {
+        val activity = context as ComponentActivity
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                face = prefs.face
+                classic = prefs.classic
+                digitalStyle = prefs.digitalStyle
+                showSeconds = prefs.showSeconds
+                showDate = prefs.showDate
+                showWeather = prefs.showWeather
+                hourMode = prefs.hourMode
+            }
+        }
+        activity.lifecycle.addObserver(observer)
+        onDispose { activity.lifecycle.removeObserver(observer) }
+    }
+    val fahrenheit = remember { prefersFahrenheit(java.util.Locale.getDefault().country) }
+    var locationOn by remember { mutableStateOf(WeatherLoader.hasLocationPermission(context)) }
+    var weather by remember { mutableStateOf(Prefs(context).weather) }
+    val locationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        locationOn = granted
+    }
+    LaunchedEffect(Unit) {
+        if (!locationOn) locationPermission.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+    }
+    LaunchedEffect(locationOn) {
+        if (!locationOn) return@LaunchedEffect
+        while (true) {
+            val report = withContext(Dispatchers.IO) { WeatherLoader.load(context) }
+            if (report != null) weather = report
+            delay(30 * 60 * 1000L)
+        }
+    }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -179,68 +219,71 @@ private fun ClockScreen(
             },
         contentAlignment = Alignment.Center,
     ) {
-        val timeSize = min(maxWidth.value / 4.4f, maxHeight.value * 0.42f)
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = now.format(timeFormat),
-                    color = Cream,
-                    fontSize = timeSize.sp,
-                    fontWeight = FontWeight.Light,
-                    letterSpacing = (-0.045).em,
-                    maxLines = 1,
-                    style = TextStyle(fontFeatureSettings = "tnum"),
-                )
-                Spacer(Modifier.width(12.dp))
-                Column(
-                    modifier = Modifier.padding(bottom = (timeSize * 0.07f).dp),
-                    verticalArrangement = Arrangement.Bottom,
-                ) {
-                    if (!is24) {
-                        Text(
-                            text = now.format(periodFormat),
-                            color = Cream.copy(alpha = 0.55f),
-                            fontSize = (timeSize * 0.16f).sp,
-                            fontWeight = FontWeight.Medium,
-                            letterSpacing = 0.08.em,
+        val scene = sceneNow(weather?.code, now.hour)
+        val accent = scene.accent()
+        val use24 = when (hourMode) {
+            HourMode.System -> is24
+            HourMode.Twelve -> false
+            HourMode.TwentyFour -> true
+        }
+        ClockBoard(
+            now = now,
+            face = face,
+            classic = classic,
+            digitalStyle = digitalStyle,
+            showSeconds = showSeconds,
+            showDate = showDate,
+            use24 = use24,
+            scene = scene,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 40.dp),
+            weather = {
+                Column {
+                    if (showWeather) {
+                        WeatherLine(
+                            weather = weather,
+                            scene = scene,
+                            fahrenheit = fahrenheit,
+                            locationOn = locationOn,
+                            onAllowLocation = {
+                                if (locationOn) return@WeatherLine
+                                locationPermission.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                            },
+                            onOpenSettings = {
+                                context.startActivity(
+                                    Intent(
+                                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                        Uri.parse("package:${context.packageName}"),
+                                    ),
+                                )
+                            },
                         )
                     }
-                    Text(
-                        text = now.format(secondFormat),
-                        color = Cream.copy(alpha = 0.42f),
-                        fontSize = (timeSize * 0.22f).sp,
-                        fontWeight = FontWeight.Light,
-                        style = TextStyle(fontFeatureSettings = "tnum"),
-                    )
+                    if (battery >= 0) {
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            text = if (wireless) "$battery%  ·  wireless charging" else "$battery%",
+                            color = if (wireless) accent.copy(alpha = 0.9f) else Cream.copy(alpha = 0.32f),
+                            fontSize = 15.sp,
+                            letterSpacing = 0.04.em,
+                        )
+                    }
                 }
-            }
-            Spacer(Modifier.height(10.dp))
-            Text(
-                text = now.format(dateFormat),
-                color = Cream.copy(alpha = 0.62f),
-                fontSize = 20.sp,
-                letterSpacing = 0.02.em,
-                textAlign = TextAlign.Center,
-            )
-            if (battery >= 0) {
-                Spacer(Modifier.height(14.dp))
-                Text(
-                    text = if (wireless) "$battery%  ·  wireless charging" else "$battery%",
-                    color = if (wireless) Amber.copy(alpha = 0.85f) else Cream.copy(alpha = 0.32f),
-                    fontSize = 15.sp,
-                    letterSpacing = 0.04.em,
-                )
-            }
-        }
+            },
+        )
 
         AnimatedVisibility(
             visible = controls,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(horizontal = 36.dp, vertical = 16.dp),
+                .padding(horizontal = 28.dp, vertical = 12.dp),
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 Text("Brightness", color = Mute, fontSize = 13.sp)
                 Slider(
                     value = level,
@@ -255,6 +298,49 @@ private fun ClockScreen(
                     Text("Close", color = Cream)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun WeatherLine(
+    weather: WeatherReport?,
+    scene: Scene,
+    fahrenheit: Boolean,
+    locationOn: Boolean,
+    onAllowLocation: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    when {
+        weather != null -> {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                WeatherMark(scene, Modifier.size(42.dp))
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = "${formatTemperature(weather.tempC, fahrenheit)}   ${weatherLabel(weather.code)}",
+                        color = Cream,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Light,
+                    )
+                    Text(
+                        text = "${formatTemperature(weather.highC, fahrenheit)}  /  ${formatTemperature(weather.lowC, fahrenheit)}",
+                        color = Mute,
+                        fontSize = 15.sp,
+                    )
+                }
+            }
+        }
+        !locationOn -> {
+            TextButton(onClick = onAllowLocation) {
+                Text("Allow location for weather", color = Amber)
+            }
+            TextButton(onClick = onOpenSettings) {
+                Text("Or open settings", color = Mute, fontSize = 13.sp)
+            }
+        }
+        else -> {
+            Text("Fetching weather…", color = Mute, fontSize = 16.sp)
         }
     }
 }
