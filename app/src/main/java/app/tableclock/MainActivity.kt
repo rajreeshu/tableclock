@@ -102,7 +102,14 @@ private fun AppRoot(prefs: Prefs) {
     var showSeconds by remember { mutableStateOf(prefs.showSeconds) }
     var showDate by remember { mutableStateOf(prefs.showDate) }
     var showWeather by remember { mutableStateOf(prefs.showWeather) }
+    var showAlarm by remember { mutableStateOf(prefs.showAlarm) }
+    var showPhone by remember { mutableStateOf(prefs.showPhone) }
     var hourMode by remember { mutableStateOf(prefs.hourMode) }
+    var classicFit by remember { mutableFloatStateOf(prefs.classicFit) }
+    var digitalFit by remember { mutableFloatStateOf(prefs.digitalFit) }
+    var dateFit by remember { mutableFloatStateOf(prefs.dateFit) }
+    var weatherFit by remember { mutableFloatStateOf(prefs.weatherFit) }
+    var sideFit by remember { mutableFloatStateOf(prefs.sideFit) }
     var notice by remember { mutableStateOf<String?>(null) }
     var resumeTick by remember { mutableIntStateOf(0) }
     var armWhenAllowed by remember { mutableStateOf(false) }
@@ -123,7 +130,14 @@ private fun AppRoot(prefs: Prefs) {
                     showSeconds = prefs.showSeconds
                     showDate = prefs.showDate
                     showWeather = prefs.showWeather
+                    showAlarm = prefs.showAlarm
+                    showPhone = prefs.showPhone
                     hourMode = prefs.hourMode
+                    classicFit = prefs.classicFit
+                    digitalFit = prefs.digitalFit
+                    dateFit = prefs.dateFit
+                    weatherFit = prefs.weatherFit
+                    sideFit = prefs.sideFit
                     resumeTick++
                 }
                 else -> Unit
@@ -183,7 +197,14 @@ private fun AppRoot(prefs: Prefs) {
             showSeconds = showSeconds,
             showDate = showDate,
             showWeather = showWeather,
+            showAlarm = showAlarm,
+            showPhone = showPhone,
             hourMode = hourMode,
+            classicFit = classicFit,
+            digitalFit = digitalFit,
+            dateFit = dateFit,
+            weatherFit = weatherFit,
+            sideFit = sideFit,
             previewWeather = prefs.weather,
             grants = grants,
             notice = notice,
@@ -231,6 +252,34 @@ private fun AppRoot(prefs: Prefs) {
             onShowWeather = {
                 showWeather = it
                 prefs.showWeather = it
+            },
+            onShowAlarm = {
+                showAlarm = it
+                prefs.showAlarm = it
+            },
+            onShowPhone = {
+                showPhone = it
+                prefs.showPhone = it
+            },
+            onClassicFit = {
+                classicFit = it
+                prefs.classicFit = it
+            },
+            onDigitalFit = {
+                digitalFit = it
+                prefs.digitalFit = it
+            },
+            onDateFit = {
+                dateFit = it
+                prefs.dateFit = it
+            },
+            onWeatherFit = {
+                weatherFit = it
+                prefs.weatherFit = it
+            },
+            onSideFit = {
+                sideFit = it
+                prefs.sideFit = it
             },
             onHourMode = {
                 hourMode = it
@@ -333,7 +382,14 @@ private fun HomeScreen(
     showSeconds: Boolean,
     showDate: Boolean,
     showWeather: Boolean,
+    showAlarm: Boolean,
+    showPhone: Boolean,
     hourMode: HourMode,
+    classicFit: Float,
+    digitalFit: Float,
+    dateFit: Float,
+    weatherFit: Float,
+    sideFit: Float,
     previewWeather: WeatherReport?,
     grants: Grants,
     notice: String?,
@@ -345,6 +401,13 @@ private fun HomeScreen(
     onShowSeconds: (Boolean) -> Unit,
     onShowDate: (Boolean) -> Unit,
     onShowWeather: (Boolean) -> Unit,
+    onShowAlarm: (Boolean) -> Unit,
+    onShowPhone: (Boolean) -> Unit,
+    onClassicFit: (Float) -> Unit,
+    onDigitalFit: (Float) -> Unit,
+    onDateFit: (Float) -> Unit,
+    onWeatherFit: (Float) -> Unit,
+    onSideFit: (Float) -> Unit,
     onHourMode: (HourMode) -> Unit,
     onCalibrate: () -> Unit,
     onPreview: () -> Unit,
@@ -413,7 +476,14 @@ private fun HomeScreen(
             showSeconds = showSeconds,
             showDate = showDate,
             showWeather = showWeather,
+            showAlarm = showAlarm,
+            showPhone = showPhone,
             hourMode = hourMode,
+            classicFit = classicFit,
+            digitalFit = digitalFit,
+            dateFit = dateFit,
+            weatherFit = weatherFit,
+            sideFit = sideFit,
             weather = previewWeather,
         )
         Spacer(Modifier.height(8.dp))
@@ -440,6 +510,7 @@ private fun HomeScreen(
             label = { it.label },
             onSelect = onClassic,
         )
+        SizeSlider(classicFit, onClassicFit)
         Spacer(Modifier.height(16.dp))
         Text("Digital", color = Cream, fontSize = 16.sp)
         Spacer(Modifier.height(8.dp))
@@ -449,6 +520,7 @@ private fun HomeScreen(
             label = { it.label },
             onSelect = onDigitalStyle,
         )
+        SizeSlider(digitalFit, onDigitalFit)
         Spacer(Modifier.height(16.dp))
         Text("Hours", color = Cream, fontSize = 16.sp)
         Spacer(Modifier.height(8.dp))
@@ -461,7 +533,12 @@ private fun HomeScreen(
         Spacer(Modifier.height(8.dp))
         OptionSwitch("Seconds", showSeconds, onShowSeconds)
         OptionSwitch("Date", showDate, onShowDate)
+        SizeSlider(dateFit, onDateFit)
         OptionSwitch("Weather", showWeather, onShowWeather)
+        SizeSlider(weatherFit, onWeatherFit)
+        OptionSwitch("Alarm", showAlarm, onShowAlarm)
+        OptionSwitch("Phone", showPhone, onShowPhone)
+        SizeSlider(sideFit, onSideFit)
         Spacer(Modifier.height(8.dp))
         Text("Clock brightness", color = Cream, fontSize = 16.sp)
         Slider(
@@ -774,7 +851,14 @@ private fun ClockDemo(
     showSeconds: Boolean,
     showDate: Boolean,
     showWeather: Boolean,
+    showAlarm: Boolean,
+    showPhone: Boolean,
     hourMode: HourMode,
+    classicFit: Float,
+    digitalFit: Float,
+    dateFit: Float,
+    weatherFit: Float,
+    sideFit: Float,
     weather: WeatherReport?,
 ) {
     val context = LocalContext.current
@@ -792,6 +876,8 @@ private fun ClockDemo(
     }
     val scene = sceneNow(weather?.code, now.hour)
     val fahrenheit = prefersFahrenheit(java.util.Locale.getDefault().country)
+    val alarmAt = rememberNextAlarmMillis()
+    val phone = rememberPhoneStatus()
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -808,33 +894,68 @@ private fun ClockDemo(
             showDate = showDate,
             use24 = use24,
             scene = scene,
+            classicFit = classicFit,
+            digitalFit = digitalFit,
+            dateFit = dateFit,
+            margins = showAlarm || showPhone,
+            marginFit = sideFit,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
+                .padding(horizontal = 12.dp, vertical = 16.dp),
+            leading = {
+                if (showAlarm) {
+                    MarginNote(
+                        MarginKind.Alarm,
+                        alarmGlance(alarmAt, now, use24),
+                        alignEnd = false,
+                        scale = sideFit,
+                    )
+                }
+            },
+            trailing = {
+                if (showPhone) {
+                    MarginNote(
+                        MarginKind.Heat,
+                        phoneGlance(phone, fahrenheit),
+                        alignEnd = true,
+                        scale = sideFit,
+                    )
+                }
+            },
             weather = {
+                val scale = weatherFit
                 if (showWeather && weather != null) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        WeatherMark(scene, Modifier.size(28.dp))
+                        WeatherMark(scene, Modifier.size((28f * scale).dp))
                         Spacer(Modifier.width(8.dp))
                         Column {
                             Text(
                                 text = "${formatTemperature(weather.tempC, fahrenheit)}  ${weatherLabel(weather.code)}",
                                 color = Cream,
-                                fontSize = 14.sp,
+                                fontSize = (14f * scale).sp,
                             )
                             Text(
                                 text = "${formatTemperature(weather.highC, fahrenheit)}  /  ${formatTemperature(weather.lowC, fahrenheit)}",
                                 color = Mute,
-                                fontSize = 11.sp,
+                                fontSize = (11f * scale).sp,
                             )
                         }
                     }
                 } else if (showWeather) {
-                    Text("Weather shows here", color = Mute, fontSize = 12.sp)
+                    Text("Weather shows here", color = Mute, fontSize = (12f * scale).sp)
                 }
             },
         )
     }
+}
+
+@Composable
+private fun SizeSlider(value: Float, onChange: (Float) -> Unit) {
+    Slider(
+        value = value,
+        onValueChange = onChange,
+        valueRange = Prefs.SIZE_RANGE,
+    )
 }
 
 @Composable

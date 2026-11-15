@@ -5,6 +5,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.util.Locale
 
 class DockDetectorTest {
     private val calibration = Calibration(ambientUt = 40f, dockedUt = 180f)
@@ -113,10 +116,44 @@ class DockDetectorTest {
     fun weatherLabelsAndTemperature() {
         assertEquals("Clear", weatherLabel(0))
         assertEquals("Rain", weatherLabel(63))
-        assertEquals("27°", formatTemperature(26.6f, fahrenheit = false))
-        assertEquals("80°", formatTemperature(26.6f, fahrenheit = true))
+        assertEquals("27°C", formatTemperature(26.6f, fahrenheit = false))
+        assertEquals("80°F", formatTemperature(26.6f, fahrenheit = true))
         assertTrue(prefersFahrenheit("US"))
         assertFalse(prefersFahrenheit("IN"))
+    }
+
+    @Test
+    fun sideNotesShowTheNextAlarmAndPhoneWarmth() {
+        val zone = ZoneId.of("Asia/Kolkata")
+        val now = LocalDateTime.of(2026, 11, 15, 21, 30)
+        val trigger = now.plusHours(6).plusMinutes(15).atZone(zone).toInstant().toEpochMilli()
+        val alarm = alarmGlance(trigger, now, use24 = false, zone = zone, locale = Locale.US)
+        assertEquals("3:45", alarm.value)
+        assertEquals("AM · Tomorrow · in 6h", alarm.detail)
+        val soon = alarmGlance(
+            now.plusMinutes(90).atZone(zone).toInstant().toEpochMilli(),
+            now,
+            use24 = false,
+            zone = zone,
+            locale = Locale.US,
+        )
+        assertEquals("11:00", soon.value)
+        assertEquals("PM · in 1h 30m", soon.detail)
+        assertEquals("None", alarmGlance(null, now, use24 = true).value)
+
+        val cool = phoneGlance(PhoneStatus(percent = 72, celsius = 36.2f), fahrenheit = false)
+        assertEquals("36°C", cool.value)
+        assertEquals("72%", cool.detail)
+        assertFalse(cool.warm)
+        assertFalse(cool.charging)
+        val hot = phoneGlance(
+            PhoneStatus(percent = 80, celsius = 41.4f, wireless = true, charging = true),
+            fahrenheit = false,
+        )
+        assertEquals("41°C", hot.value)
+        assertEquals("80%", hot.detail)
+        assertTrue(hot.charging)
+        assertTrue(hot.warm)
     }
 
     @Test

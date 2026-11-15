@@ -12,7 +12,7 @@ If the pad is powered, wireless charging opens the clock as well.
 - A phone with a magnetometer. A Galaxy S24 Ultra is one.
 - A magnetic charger or a magnetic stand
 
-The app screen shows a live preview. Choose Classic, Digital, or both, then a style for each, plus seconds, date, weather, and 12- or 24-hour time. The weather icon follows the forecast.
+The app screen shows a live preview. Choose Classic, Digital, or both, then a style and a size for each. Date, temperature, and the side notes have their own sizes, and each of those can be hidden. The weather icon follows the forecast. The open space on the left shows the next alarm. The space on the right shows how warm the phone is, and the battery under that.
 
 ## Use it
 

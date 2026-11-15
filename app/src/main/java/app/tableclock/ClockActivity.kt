@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.Uri
-import android.os.BatteryManager
 import android.os.Bundle
 import android.provider.Settings
 import android.text.format.DateFormat
@@ -18,8 +17,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -39,7 +36,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,7 +47,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
@@ -143,27 +138,6 @@ private fun ClockScreen(
         }
     }
 
-    var battery by remember { mutableIntStateOf(-1) }
-    var wireless by remember { mutableStateOf(false) }
-    DisposableEffect(context) {
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(c: Context, intent: Intent) {
-                val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
-                val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100).coerceAtLeast(1)
-                battery = if (level >= 0) level * 100 / scale else -1
-                wireless = PhoneSignals.isWireless(intent)
-            }
-        }
-        val sticky = ContextCompat.registerReceiver(
-            context,
-            receiver,
-            IntentFilter(Intent.ACTION_BATTERY_CHANGED),
-            ContextCompat.RECEIVER_NOT_EXPORTED,
-        )
-        if (sticky != null) receiver.onReceive(context, sticky)
-        onDispose { context.unregisterReceiver(receiver) }
-    }
-
     val prefs = remember { Prefs(context) }
     var controls by remember { mutableStateOf(false) }
     var level by remember { mutableFloatStateOf(brightness) }
@@ -173,7 +147,14 @@ private fun ClockScreen(
     var showSeconds by remember { mutableStateOf(prefs.showSeconds) }
     var showDate by remember { mutableStateOf(prefs.showDate) }
     var showWeather by remember { mutableStateOf(prefs.showWeather) }
+    var showAlarm by remember { mutableStateOf(prefs.showAlarm) }
+    var showPhone by remember { mutableStateOf(prefs.showPhone) }
     var hourMode by remember { mutableStateOf(prefs.hourMode) }
+    var classicFit by remember { mutableFloatStateOf(prefs.classicFit) }
+    var digitalFit by remember { mutableFloatStateOf(prefs.digitalFit) }
+    var dateFit by remember { mutableFloatStateOf(prefs.dateFit) }
+    var weatherFit by remember { mutableFloatStateOf(prefs.weatherFit) }
+    var sideFit by remember { mutableFloatStateOf(prefs.sideFit) }
     DisposableEffect(context) {
         val activity = context as ComponentActivity
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
@@ -184,7 +165,14 @@ private fun ClockScreen(
                 showSeconds = prefs.showSeconds
                 showDate = prefs.showDate
                 showWeather = prefs.showWeather
+                showAlarm = prefs.showAlarm
+                showPhone = prefs.showPhone
                 hourMode = prefs.hourMode
+                classicFit = prefs.classicFit
+                digitalFit = prefs.digitalFit
+                dateFit = prefs.dateFit
+                weatherFit = prefs.weatherFit
+                sideFit = prefs.sideFit
             }
         }
         activity.lifecycle.addObserver(observer)
@@ -220,12 +208,13 @@ private fun ClockScreen(
         contentAlignment = Alignment.Center,
     ) {
         val scene = sceneNow(weather?.code, now.hour)
-        val accent = scene.accent()
         val use24 = when (hourMode) {
             HourMode.System -> is24
             HourMode.Twelve -> false
             HourMode.TwentyFour -> true
         }
+        val alarmAt = rememberNextAlarmMillis()
+        val phone = rememberPhoneStatus()
         ClockBoard(
             now = now,
             face = face,
@@ -235,9 +224,34 @@ private fun ClockScreen(
             showDate = showDate,
             use24 = use24,
             scene = scene,
+            classicFit = classicFit,
+            digitalFit = digitalFit,
+            dateFit = dateFit,
+            margins = showAlarm || showPhone,
+            marginFit = sideFit,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 40.dp),
+                .padding(horizontal = 28.dp),
+            leading = {
+                if (showAlarm) {
+                    MarginNote(
+                        MarginKind.Alarm,
+                        alarmGlance(alarmAt, now, use24),
+                        alignEnd = false,
+                        scale = sideFit,
+                    )
+                }
+            },
+            trailing = {
+                if (showPhone) {
+                    MarginNote(
+                        MarginKind.Heat,
+                        phoneGlance(phone, fahrenheit),
+                        alignEnd = true,
+                        scale = sideFit,
+                    )
+                }
+            },
             weather = {
                 Column {
                     if (showWeather) {
@@ -245,6 +259,7 @@ private fun ClockScreen(
                             weather = weather,
                             scene = scene,
                             fahrenheit = fahrenheit,
+                            scale = weatherFit,
                             locationOn = locationOn,
                             onAllowLocation = {
                                 if (locationOn) return@WeatherLine
@@ -258,15 +273,6 @@ private fun ClockScreen(
                                     ),
                                 )
                             },
-                        )
-                    }
-                    if (battery >= 0) {
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            text = if (wireless) "$battery%  ·  wireless charging" else "$battery%",
-                            color = if (wireless) accent.copy(alpha = 0.9f) else Cream.copy(alpha = 0.32f),
-                            fontSize = 15.sp,
-                            letterSpacing = 0.04.em,
                         )
                     }
                 }
@@ -307,6 +313,7 @@ private fun WeatherLine(
     weather: WeatherReport?,
     scene: Scene,
     fahrenheit: Boolean,
+    scale: Float,
     locationOn: Boolean,
     onAllowLocation: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -314,19 +321,19 @@ private fun WeatherLine(
     when {
         weather != null -> {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                WeatherMark(scene, Modifier.size(42.dp))
+                WeatherMark(scene, Modifier.size((42f * scale).dp))
                 Spacer(Modifier.width(10.dp))
                 Column {
                     Text(
                         text = "${formatTemperature(weather.tempC, fahrenheit)}   ${weatherLabel(weather.code)}",
                         color = Cream,
-                        fontSize = 24.sp,
+                        fontSize = (24f * scale).sp,
                         fontWeight = FontWeight.Light,
                     )
                     Text(
                         text = "${formatTemperature(weather.highC, fahrenheit)}  /  ${formatTemperature(weather.lowC, fahrenheit)}",
                         color = Mute,
-                        fontSize = 15.sp,
+                        fontSize = (15f * scale).sp,
                     )
                 }
             }

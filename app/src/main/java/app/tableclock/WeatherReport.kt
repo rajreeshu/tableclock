@@ -25,7 +25,8 @@ fun weatherLabel(code: Int): String = when (code) {
 
 fun formatTemperature(celsius: Float, fahrenheit: Boolean): String {
     val value = if (fahrenheit) celsius * 9f / 5f + 32f else celsius
-    return "${kotlin.math.round(value).toInt()}°"
+    val unit = if (fahrenheit) "F" else "C"
+    return "${kotlin.math.round(value).toInt()}°$unit"
 }
 
 fun prefersFahrenheit(country: String): Boolean = country == "US" || country == "LR" || country == "MM"

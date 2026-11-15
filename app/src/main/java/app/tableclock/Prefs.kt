@@ -71,6 +71,48 @@ class Prefs(context: Context) {
             prefs.edit().putString(KEY_HOURS, value.name).apply()
         }
 
+    var classicFit: Float
+        get() = prefs.getFloat(KEY_CLASSIC_SIZE, 1f).coerceIn(SIZE_RANGE)
+        set(value) {
+            prefs.edit().putFloat(KEY_CLASSIC_SIZE, value.coerceIn(SIZE_RANGE)).apply()
+        }
+
+    var digitalFit: Float
+        get() = prefs.getFloat(KEY_DIGITAL_SIZE, 1f).coerceIn(SIZE_RANGE)
+        set(value) {
+            prefs.edit().putFloat(KEY_DIGITAL_SIZE, value.coerceIn(SIZE_RANGE)).apply()
+        }
+
+    var dateFit: Float
+        get() = prefs.getFloat(KEY_DATE_SIZE, 1f).coerceIn(SIZE_RANGE)
+        set(value) {
+            prefs.edit().putFloat(KEY_DATE_SIZE, value.coerceIn(SIZE_RANGE)).apply()
+        }
+
+    var weatherFit: Float
+        get() = prefs.getFloat(KEY_WEATHER_SIZE, 1f).coerceIn(SIZE_RANGE)
+        set(value) {
+            prefs.edit().putFloat(KEY_WEATHER_SIZE, value.coerceIn(SIZE_RANGE)).apply()
+        }
+
+    var sideFit: Float
+        get() = prefs.getFloat(KEY_SIDE_SIZE, 1f).coerceIn(SIZE_RANGE)
+        set(value) {
+            prefs.edit().putFloat(KEY_SIDE_SIZE, value.coerceIn(SIZE_RANGE)).apply()
+        }
+
+    var showAlarm: Boolean
+        get() = prefs.getBoolean(KEY_ALARM, true)
+        set(value) {
+            prefs.edit().putBoolean(KEY_ALARM, value).apply()
+        }
+
+    var showPhone: Boolean
+        get() = prefs.getBoolean(KEY_PHONE, true)
+        set(value) {
+            prefs.edit().putBoolean(KEY_PHONE, value).apply()
+        }
+
     var weather: WeatherReport?
         get() {
             if (!prefs.contains(KEY_WEATHER_AT)) return null
@@ -98,6 +140,7 @@ class Prefs(context: Context) {
 
     companion object {
         const val DEFAULT_BRIGHTNESS = 0.12f
+        val SIZE_RANGE = 0.55f..1.75f
         private const val NAME = "tableclock"
         private const val KEY_ENABLED = "enabled"
         private const val KEY_AMBIENT = "ambient"
@@ -115,5 +158,12 @@ class Prefs(context: Context) {
         private const val KEY_DATE = "date"
         private const val KEY_SHOW_WEATHER = "show_weather"
         private const val KEY_HOURS = "hours"
+        private const val KEY_CLASSIC_SIZE = "scale_classic"
+        private const val KEY_DIGITAL_SIZE = "scale_digital"
+        private const val KEY_DATE_SIZE = "scale_date"
+        private const val KEY_WEATHER_SIZE = "scale_weather"
+        private const val KEY_SIDE_SIZE = "scale_side"
+        private const val KEY_ALARM = "show_alarm"
+        private const val KEY_PHONE = "show_phone"
     }
 }

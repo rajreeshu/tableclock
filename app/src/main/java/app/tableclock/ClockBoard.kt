@@ -1,6 +1,6 @@
 package app.tableclock
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -34,7 +34,14 @@ fun ClockBoard(
     showDate: Boolean,
     use24: Boolean,
     scene: Scene,
+    classicFit: Float = 1f,
+    digitalFit: Float = 1f,
+    dateFit: Float = 1f,
+    margins: Boolean = true,
+    marginFit: Float = 1f,
     modifier: Modifier = Modifier,
+    leading: @Composable () -> Unit = {},
+    trailing: @Composable () -> Unit = {},
     weather: @Composable () -> Unit = {},
 ) {
     val accent = scene.accent()
@@ -47,24 +54,35 @@ fun ClockBoard(
         val showAnalog = face != ClockFace.Digital
         val showDigital = face != ClockFace.Analog
         val compact = maxHeight < 320.dp
-        val analog = when (face) {
-            ClockFace.Analog -> min(maxHeight.value * 0.72f, maxWidth.value * 0.42f)
-            ClockFace.Both -> min(maxHeight.value * 0.78f, maxWidth.value * 0.34f)
+        val narrow = maxWidth < 520.dp
+        val gutter = if (margins) (if (narrow) 58f else 84f) * marginFit else 8f
+        val inner = (maxWidth.value - gutter * 2f).coerceAtLeast(120f)
+        val analogBase = when (face) {
+            ClockFace.Analog -> min(maxHeight.value * 0.78f, inner * 0.86f)
+            ClockFace.Both -> min(maxHeight.value * 0.78f, inner * 0.46f)
             ClockFace.Digital -> 0f
         }
-        val timeSize = when (face) {
-            ClockFace.Digital -> min(maxWidth.value / 5.4f, maxHeight.value * if (compact) 0.34f else 0.42f)
+        val analogCap = if (face == ClockFace.Both) inner * 0.62f else inner
+        val analog = if (face == ClockFace.Digital) {
+            0f
+        } else {
+            (analogBase * classicFit).coerceIn(32f, min(maxHeight.value * 0.92f, analogCap))
+        }
+        val timeBase = when (face) {
+            ClockFace.Digital -> min(inner / 4.8f, maxHeight.value * if (compact) 0.34f else 0.42f)
             ClockFace.Both -> min(
-                (maxWidth.value - analog - if (compact) 48f else 120f).coerceAtLeast(80f) / 4.8f,
+                (inner - analog - if (compact) 28f else 48f).coerceAtLeast(64f) / 4.6f,
                 maxHeight.value * if (compact) 0.28f else 0.34f,
             )
             ClockFace.Analog -> 0f
         }
+        val timeSize = (timeBase * digitalFit).coerceIn(12f, maxHeight.value * 0.55f)
+        val dateSize = (if (compact) 11f else 18f) * dateFit
         Row(
             modifier = Modifier.fillMaxSize(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
         ) {
+            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { leading() }
             if (showAnalog) AnalogClock(now, accent, classic, Modifier.size(analog.dp))
             if (showAnalog && showDigital) Spacer(Modifier.width(if (compact) 12.dp else 36.dp))
             Column(
@@ -85,12 +103,13 @@ fun ClockBoard(
                     Text(
                         text = date,
                         color = Cream.copy(alpha = 0.62f),
-                        fontSize = if (compact) 11.sp else 18.sp,
+                        fontSize = dateSize.sp,
                     )
                     Spacer(Modifier.height(if (compact) 6.dp else 16.dp))
                 }
                 weather()
             }
+            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) { trailing() }
         }
     }
 }
